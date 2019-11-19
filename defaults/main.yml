@@ -2,3 +2,4 @@
 # defaults file for virtual-bmc
 manage_firewall: True
 undercloud_user: stack
+instackfile_path: "/home/{{ undercloud_user }}"
