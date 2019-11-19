@@ -40,18 +40,12 @@
       set_fact:
         vm_port_association: >-
           {{ all_vms['list_vms']|sort|zip(port_numbers)|list }}
-    - name: Show the port numbers
-      debug:
-        var: port_numbers
     - name: Add VMs to BMC service
       shell: >-
         vbmc add {{item.0}} --port {{item.1}} --username admin --password password && vbmc start {{item.0}}
       args:
         creates: "/root/.vbmc/{{ item.0 }}"
-      # debug:
-      #   msg: "The vm {{ item.0 }} the port {{ item.1}}"
       loop: "{{ vm_port_association }}"
-      poll: 0
 - name: Manage firewall
   block:
     - name: Disable Iptables
@@ -78,7 +72,6 @@
           permanent: yes
           port: "{{ item }}/udp" # not required. Name of a port or port range to add/remove to/from firewalld. Must be in the form PORT/PROTOCOL or PORT-PORT/PROTOCOL for port ranges.
       loop: "{{ port_numbers }}"
-      poll: 0
   when: manage_firewall|bool
 - name: Get Mac address of the VMs
   block:
@@ -94,11 +87,7 @@
     - name: Get the Mac
       set_fact:
         mac_addrs: "{{ mac_addrs + [item.get_xml | regex_search('52:54:00.{9}')] }}"
-    #     msg: "the xml is {{item.get_xml}}"
       loop: "{{ vm_xml.results }}"
-    - name: Print what's in the xml
-      debug:
-        var: mac_addrs
     - name: Zip vm names with port numbers
       set_fact:
         vm_port_mac_association: >-
@@ -110,9 +99,9 @@
   vars:
     all_vms: "{{ vm_port_mac_association }}"
   template:
-      dest: "/home/pkopec/vbmc-instack-{{ inventory_hostname }}.json" # required. Location to render the template to on the remote machine.
+      dest: "/home/{{ undercloud }}/vbmc-instack-{{ inventory_hostname }}.json" # required. Location to render the template to on the remote machine.
       src: vbmc-instack.json.j2 # required. Path of a Jinja2 formatted template on the Ansible controller. This can be a relative or absolute path.
-      owner: pkopec # not required. Name of the user that should own the file/directory, as would be fed to I(chown).
-      group: pkopec # not required. Name of the group that should own the file/directory, as would be fed to I(chown).
+      owner: stack # not required. Name of the user that should own the file/directory, as would be fed to I(chown).
+      group: stack # not required. Name of the group that should own the file/directory, as would be fed to I(chown).
       # validate: undefined # not required. The validation command to run before copying into place. The path to the file to validate is passed in via '%s' which must be present as in the example below. The command is passed securely so shell features like expansion and pipes won't work.
-  delegate_to: 127.0.0.1
+  delegate_to: undercloud

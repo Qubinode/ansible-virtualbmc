@@ -1,3 +1,4 @@
 ---
 # defaults file for virtual-bmc
 manage_firewall: True
+undercloud_user: stack
