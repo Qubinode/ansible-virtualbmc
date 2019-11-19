@@ -1,0 +1,18 @@
+{
+    "nodes": [
+        {% for vm in vm_port_mac_association %}
+        {
+            "name": "{{ vm.0 }}",
+            "arch": "x86_64",
+            "mac": [
+                "{{vm.2}}"
+            ],
+            "pm_addr": "{{ ansible_default_ipv4.address }}",
+            "pm_password": "password",
+            "pm_type": "ipmi",
+            "pm_user": "admin",
+            "pm_port": "{{vm.1}}"
+        },
+        {% endfor %}
+        ]
+}

@@ -1,0 +1,118 @@
+---
+# tasks file for virtual-bmc
+- name: Install virtualbmc
+  block:
+    - name: Install python-pip
+      package:
+        state: latest
+        name: python-pip
+    - name: Install dev tools
+      package:
+          state: latest
+          name:
+            - gcc
+            - python-devel
+            - libvirt-devel
+
+    - name: Upgrade pip
+      pip:
+          name: pip
+          extra_args: --upgrade
+          state: latest
+    - name: instapp virtualbmc
+      pip:
+          name: virtualbmc
+          state: latest
+- name: Register all existing VMs in BMC service
+  block:
+    - name: List VMs
+      virt:
+        command: list_vms
+      register: all_vms
+    - name: What's in the all_vms
+      debug:
+          var: all_vms
+    - name: Generate port numbers for VMs
+      set_fact:
+        port_numbers: >-
+          {{ range(6230,(6230+all_vms['list_vms']|length))|list }}
+    - name: Zip vm names with port numbers
+      set_fact:
+        vm_port_association: >-
+          {{ all_vms['list_vms']|sort|zip(port_numbers)|list }}
+    - name: Show the port numbers
+      debug:
+        var: port_numbers
+    - name: Add VMs to BMC service
+      shell: >-
+        vbmc add {{item.0}} --port {{item.1}} --username admin --password password && vbmc start {{item.0}}
+      args:
+        creates: "/root/.vbmc/{{ item.0 }}"
+      # debug:
+      #   msg: "The vm {{ item.0 }} the port {{ item.1}}"
+      loop: "{{ vm_port_association }}"
+      poll: 0
+- name: Manage firewall
+  block:
+    - name: Disable Iptables
+      systemd:
+          name: iptables
+          enabled: no
+          state: stopped
+          masked: yes
+    - name: Flush iptables
+      iptables:
+          flush: yes # not required. Flushes the specified table and chain of all rules.,If no chain is specified then the entire table is purged.,Ignores all other parameters.
+          table: filter # not required. choices: filter;nat;mangle;raw;security. This option specifies the packet matching table which the command should operate on. If the kernel is configured with automatic module loading, an attempt will be made to load the appropriate module for that table if it is not already there.
+          state: present # not required. choices: absent;present. Whether the rule should be absent or present.
+    - name: Enable firewalld
+      systemd:
+          name: firewalld
+          enabled: yes
+          state: started
+          masked: no
+    - name: Manage firewall for vbmc
+      firewalld:
+          state: enabled
+          immediate: yes
+          permanent: yes
+          port: "{{ item }}/udp" # not required. Name of a port or port range to add/remove to/from firewalld. Must be in the form PORT/PROTOCOL or PORT-PORT/PROTOCOL for port ranges.
+      loop: "{{ port_numbers }}"
+      poll: 0
+  when: manage_firewall|bool
+- name: Get Mac address of the VMs
+  block:
+    - name: Get mac addr
+      virt:
+          command: get_xml
+          name: "{{ item.0 }}" # not required. name of the guest VM being managed. Note that VM must be previously defined with xml.,This option is required unless I(command) is C(list_vms).
+      register: vm_xml
+      loop: "{{ vm_port_association }}"
+    - name: Prepare list for MAC storage
+      set_fact:
+        mac_addrs: []
+    - name: Get the Mac
+      set_fact:
+        mac_addrs: "{{ mac_addrs + [item.get_xml | regex_search('52:54:00.{9}')] }}"
+    #     msg: "the xml is {{item.get_xml}}"
+      loop: "{{ vm_xml.results }}"
+    - name: Print what's in the xml
+      debug:
+        var: mac_addrs
+    - name: Zip vm names with port numbers
+      set_fact:
+        vm_port_mac_association: >-
+          {{ all_vms['list_vms']|sort|zip(port_numbers, mac_addrs)|list }}
+    - name: Show vm_port_mac_association
+      debug:
+        var: vm_port_mac_association
+- name: Generate instack file
+  vars:
+    all_vms: "{{ vm_port_mac_association }}"
+  template:
+      dest: "/home/pkopec/vbmc-instack-{{ inventory_hostname }}.json" # required. Location to render the template to on the remote machine.
+      src: vbmc-instack.json.j2 # required. Path of a Jinja2 formatted template on the Ansible controller. This can be a relative or absolute path.
+      owner: pkopec # not required. Name of the user that should own the file/directory, as would be fed to I(chown).
+      group: pkopec # not required. Name of the group that should own the file/directory, as would be fed to I(chown).
+      # validate: undefined # not required. The validation command to run before copying into place. The path to the file to validate is passed in via '%s' which must be present as in the example below. The command is passed securely so shell features like expansion and pipes won't work.
+  delegate_to: 127.0.0.1
