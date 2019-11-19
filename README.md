@@ -25,7 +25,7 @@ passed in as parameters) is always nice for users too:
         instack_user: stack
         instackfile_path: "/home/{{instack_user}}"
       roles:
-         - role: virtual-bmc
+         - role: ansible-virtual-bmc
 
 License
 -------
