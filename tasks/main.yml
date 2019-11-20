@@ -99,9 +99,9 @@
   vars:
     all_vms: "{{ vm_port_mac_association }}"
   template:
-      dest: "/home/{{ undercloud }}/vbmc-instack-{{ inventory_hostname }}.json"
+      dest: "{{ instackfile_path }}/vbmc-instack-{{ inventory_hostname }}.json" # required. Location to render the template to on the remote machine.
       src: vbmc-instack.json.j2 # required. Path of a Jinja2 formatted template on the Ansible controller. This can be a relative or absolute path.
       owner: stack # not required. Name of the user that should own the file/directory, as would be fed to I(chown).
       group: stack # not required. Name of the group that should own the file/directory, as would be fed to I(chown).
       # validate: undefined # not required. The validation command to run before copying into place. The path to the file to validate is passed in via '%s' which must be present as in the example below. The command is passed securely so shell features like expansion and pipes won't work.
-  delegate_to: undercloud
+  delegate_to: localhost
